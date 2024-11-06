@@ -39,3 +39,5 @@ roslaunch frenet_ilqr_test demo.launch
 - The start state must be ahead of the first reference point.  
 
 ![规划.gif](https://i.loli.net/2020/04/12/XmxgwTGRI1MtoVK.gif)  
+
+try to plan in descartes coordinates 
