@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(gflags REQUIRED)
+find_package(glog REQUIRED)  # 添加 glog 的查找
 
 catkin_package(
         INCLUDE_DIRS src
@@ -47,7 +48,10 @@ add_library(${PROJECT_NAME}
         src/solver/problem_manager.cpp
         src/path/path_problem_manager.cpp
         )
-target_link_libraries(${PROJECT_NAME} glog gflags ${catkin_LIBRARIES}
+target_link_libraries(${PROJECT_NAME}
+        glog::glog  # 使用 glog 的现代 CMake 目标
+        gflags
+        ${catkin_LIBRARIES}
         )
 
 add_executable(${PROJECT_NAME}_demo
@@ -55,5 +59,7 @@ add_executable(${PROJECT_NAME}_demo
         src/test/Map.cpp
         src/test/reference_line_processor.cpp)
 target_link_libraries(${PROJECT_NAME}_demo
-        ${PROJECT_NAME} ${OpenCV_LIBRARIES}
+        ${PROJECT_NAME}
+        glog::glog  # 确保 demo 也链接 glog
+        ${OpenCV_LIBRARIES}
         )
