@@ -1,0 +1,22 @@
+# 编译输出
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dll
+*.dSYM/
+
+# CMake 生成文件
+CMakeCache.txt
+CMakeFiles/
+build/
+Makefile
+cmake_install.cmake
+
+# 编辑器/IDE 相关
+.vscode/
+.idea/
+*.iml
+log/
