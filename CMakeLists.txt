@@ -22,6 +22,16 @@ find_package(OpenCV REQUIRED)
 find_package(gflags REQUIRED)
 find_package(glog REQUIRED)  # 添加 glog 的查找
 
+# Set the path to OSQP library and include files
+set(OSQP_ROOT "${CMAKE_SOURCE_DIR}/path_optimizer_ilqr/src/osqp_solver/osqp")
+set(OSQP_INCLUDE_DIR "${OSQP_ROOT}/include")
+set(OSQP_LIB_DIR "${OSQP_ROOT}/lib")
+# Add the OSQP include directory
+include_directories(${OSQP_INCLUDE_DIR})
+
+message(STATUS "CMAKE_SOURCE_DIR path: ${CMAKE_SOURCE_DIR}")
+
+
 catkin_package(
         INCLUDE_DIRS src
         LIBRARIES ${PROJECT_NAME}
@@ -53,13 +63,17 @@ target_link_libraries(${PROJECT_NAME}
         gflags
         ${catkin_LIBRARIES}
         )
-
+message(STATUS "OSQP_LIB_DIR path: ${OSQP_LIB_DIR}")
 add_executable(${PROJECT_NAME}_demo
         src/test/demo.cpp
         src/test/Map.cpp
-        src/test/reference_line_processor.cpp)
+        src/test/reference_line_processor.cpp
+        src/osqp_solver/path_planning_interface.cpp
+        src/osqp_solver/piecewise_jerk_path_problem.cc
+        src/osqp_solver/piecewise_jerk_problem.cc)
 target_link_libraries(${PROJECT_NAME}_demo
         ${PROJECT_NAME}
         glog::glog  # 确保 demo 也链接 glog
         ${OpenCV_LIBRARIES}
+        "${OSQP_LIB_DIR}/libosqp.so"
         )

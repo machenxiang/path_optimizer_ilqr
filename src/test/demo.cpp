@@ -2,35 +2,39 @@
 // Created by ljn on 20-2-4.
 //
 
-#include <iostream>
-#include <vector>
-#include <tuple>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <ros/ros.h>
-#include <ros/package.h>
-#include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <tf/transform_datatypes.h>
-#include <tf/transform_broadcaster.h>
-#include <tf/tf.h>
+#include <nav_msgs/OccupancyGrid.h>
+#include <ros/package.h>
+#include <ros/ros.h>
 #include <ros_viz_tools/ros_viz_tools.h>
+#include <sys/stat.h>
+#include <tf/tf.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_datatypes.h>
+#include <unistd.h>
+
 #include <grid_map_core/grid_map_core.hpp>
 #include <grid_map_cv/grid_map_cv.hpp>
 #include <grid_map_ros/grid_map_ros.hpp>
-#include "glog/logging.h"
+#include <iostream>
+#include <tuple>
+#include <vector>
+
+#include "eigen2cv.hpp"
 #include "eigen3/Eigen/Dense"
+#include "glog/logging.h"
 #include "opencv2/core/core.hpp"
 #include "opencv2/core/eigen.hpp"
 #include "opencv2/opencv.hpp"
-#include "eigen2cv.hpp"
-#include "reference_line_processor.h"
 #include "path/data_structure.h"
-#include "path/path_problem_manager.h"
-#include "solver/solver.h"
 #include "path/gflags.h"
+#include "path/path_problem_manager.h"
 #include "path/tool.h"
+#include "reference_line_processor.h"
+#include "solver/solver.h"
+#include "../osqp_solver/path_planning_interface.h"
+
 
 // TODO: this file is a mess.
 
@@ -78,6 +82,9 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "path_optimization");
     ros::NodeHandle nh("~");
 
+    int test_param = 0;
+    ros::param::get("test_param", test_param);
+    std::cout << "test_param:" << test_param << std::endl;
     std::string base_dir = ros::package::getPath("frenet_ilqr_test");
     auto log_dir = base_dir + "/log";
     if (0 != access(log_dir.c_str(), 0)) {
@@ -209,100 +216,123 @@ int main(int argc, char **argv) {
                 boundary_points_marker.points.push_back(p);
             }
             markers.append(boundary_points_marker);
+            // ref_line vis
+            visualization_msgs::Marker init_ref_marker = markers.newLineStrip(
+                0.3, "init ref", id++, ros_viz_tools::YELLOW, marker_frame_id);
+            const double length = ref_line_ptr->length();
+            for (double s = 0.0; s < length; s = s + 0.5) {
+              const auto &p = ref_line_ptr->get_reference_point(s);
+              geometry_msgs::Point mark_p;
+              mark_p.x = p.x;
+              mark_p.y = p.y;
+              mark_p.z = 1.0;
+              init_ref_marker.points.push_back(mark_p);
+            }
+            markers.append(init_ref_marker);
 
+            osqp_planning::PathPlanningInterface osqp_path_planning_interface(
+                ref_line_ptr, free_space_ptr);
+            osqp_path_planning_interface.Run();
             // solve
-            PathPlanning::PathProblemManager path_problem_manager;
-            path_problem_manager.formulate_path_problem(*free_space_ptr, *ref_line_ptr, start_state, end_state);
-            Solver::ILQRSolver<PathPlanning::N_PATH_STATE, PathPlanning::N_PATH_CONTROL> ilqr_solver(path_problem_manager);
-            const auto solve_status = ilqr_solver.solve();
+            // PathPlanning::PathProblemManager path_problem_manager;
+            // path_problem_manager.formulate_path_problem(*free_space_ptr,
+            // *ref_line_ptr, start_state, end_state);
+            // Solver::ILQRSolver<PathPlanning::N_PATH_STATE,
+            // PathPlanning::N_PATH_CONTROL> ilqr_solver(path_problem_manager);
+            // const auto solve_status = ilqr_solver.solve();
             // LOG(INFO) << "Solve status " << solve_status;
 
-            visualization_msgs::Marker init_path_marker =
-                markers.newLineStrip(0.3, "init path", id++, ros_viz_tools::YELLOW, marker_frame_id);
-            const auto& init_path_raw = path_problem_manager.init_trajectory();
-            for (size_t i = 0; i != init_path_raw.size(); ++i) {
-                PathPlanning::SLPosition sl;
-                sl.s = init_path_raw[i].sample();
-                sl.l = init_path_raw[i].state()(PathPlanning::L_INDEX);
-                const auto xy = ref_line_ptr->get_xy_by_sl(sl);
-                geometry_msgs::Point p;
-                p.x = xy.x;
-                p.y = xy.y;
-                p.z = 1.0;
-                init_path_marker.points.push_back(p);;
-            }
-            markers.append(init_path_marker);
-            ros_viz_tools::ColorRGBA path_color;
-            path_color.r = 0.063;
-            path_color.g = 0.305;
-            path_color.b = 0.545;
-            if (solve_status != ILQRSolveStatus::SOLVED) {
-                path_color.r = 1.0;
-                path_color.g = 0.0;
-                path_color.b = 0.0;
-            }
-            visualization_msgs::Marker result_marker =
-                markers.newLineStrip(FLAGS_vehicle_width, "optimized path", id++, path_color, marker_frame_id);
-            visualization_msgs::Marker vehicle_geometry_marker =
-                markers.newLineList(0.02, "vehicle", id++, ros_viz_tools::GRAY, marker_frame_id);
-            // Visualize vehicle geometry.
-            static const double length{FLAGS_vehicle_length};
-            static const double width{FLAGS_vehicle_width};
-            static const double rtc{FLAGS_rear_axle_to_center};
-            static const double rear_d{length / 2 - rtc};
-            static const double front_d{length - rear_d};
-            const auto& opt_path_raw = ilqr_solver.final_trajectory();
-            const auto result = PathProblemManager::transform_to_path_points(*ref_line_ptr, opt_path_raw);
-            for (size_t i = 0; i != result.size(); ++i) {
-                const auto path_point = result.at(i);
-                geometry_msgs::Point p;
-                p.x = path_point.x;
-                p.y = path_point.y;
-                p.z = 1.0;
-                result_marker.points.push_back(p);
-                const auto k = path_point.kappa;
-                path_color.a = std::min(fabs(k) / 0.15, 1.0);
-                path_color.a = std::max((float)0.1, path_color.a);
-                result_marker.colors.emplace_back(path_color);
-                //
-                const double heading = path_point.theta;
-                PathPoint p1, p2, p3, p4;
-                p1.x = front_d;
-                p1.y = width / 2;
-                p2.x = front_d;
-                p2.y = -width / 2;
-                p3.x = -rear_d;
-                p3.y = -width / 2;
-                p4.x = -rear_d;
-                p4.y = width / 2;
-                p1 = local_to_global(path_point, p1);
-                p2 = local_to_global(path_point, p2);
-                p3 = local_to_global(path_point, p3);
-                p4 = local_to_global(path_point, p4);
-                geometry_msgs::Point pp1, pp2, pp3, pp4;
-                pp1.x = p1.x;
-                pp1.y = p1.y;
-                pp1.z = 0.1;
-                pp2.x = p2.x;
-                pp2.y = p2.y;
-                pp2.z = 0.1;
-                pp3.x = p3.x;
-                pp3.y = p3.y;
-                pp3.z = 0.1;
-                pp4.x = p4.x;
-                pp4.y = p4.y;
-                pp4.z = 0.1;
-                vehicle_geometry_marker.points.push_back(pp1);
-                vehicle_geometry_marker.points.push_back(pp2);
-                vehicle_geometry_marker.points.push_back(pp2);
-                vehicle_geometry_marker.points.push_back(pp3);
-                vehicle_geometry_marker.points.push_back(pp3);
-                vehicle_geometry_marker.points.push_back(pp4);
-                vehicle_geometry_marker.points.push_back(pp4);
-                vehicle_geometry_marker.points.push_back(pp1);
-            }
-            markers.append(result_marker);
-            markers.append(vehicle_geometry_marker);
+            // visualization_msgs::Marker init_path_marker =
+            //     markers.newLineStrip(0.3, "init path", id++,
+            //     ros_viz_tools::YELLOW, marker_frame_id);
+            // const auto& init_path_raw =
+            // path_problem_manager.init_trajectory(); for (size_t i = 0; i !=
+            // init_path_raw.size(); ++i) {
+            //     PathPlanning::SLPosition sl;
+            //     sl.s = init_path_raw[i].sample();
+            //     sl.l = init_path_raw[i].state()(PathPlanning::L_INDEX);
+            //     const auto xy = ref_line_ptr->get_xy_by_sl(sl);
+            //     geometry_msgs::Point p;
+            //     p.x = xy.x;
+            //     p.y = xy.y;
+            //     p.z = 1.0;
+            //     init_path_marker.points.push_back(p);;
+            // }
+            // markers.append(init_path_marker);
+            // ros_viz_tools::ColorRGBA path_color;
+            // path_color.r = 0.063;
+            // path_color.g = 0.305;
+            // path_color.b = 0.545;
+            // if (solve_status != ILQRSolveStatus::SOLVED) {
+            //     path_color.r = 1.0;
+            //     path_color.g = 0.0;
+            //     path_color.b = 0.0;
+            // }
+            // visualization_msgs::Marker result_marker =
+            //     markers.newLineStrip(FLAGS_vehicle_width, "optimized path",
+            //     id++, path_color, marker_frame_id);
+            // visualization_msgs::Marker vehicle_geometry_marker =
+            //     markers.newLineList(0.02, "vehicle", id++,
+            //     ros_viz_tools::GRAY, marker_frame_id);
+            // // Visualize vehicle geometry.
+            // static const double length{FLAGS_vehicle_length};
+            // static const double width{FLAGS_vehicle_width};
+            // static const double rtc{FLAGS_rear_axle_to_center};
+            // static const double rear_d{length / 2 - rtc};
+            // static const double front_d{length - rear_d};
+            // const auto& opt_path_raw = ilqr_solver.final_trajectory();
+            // const auto result =
+            // PathProblemManager::transform_to_path_points(*ref_line_ptr,
+            // opt_path_raw); for (size_t i = 0; i != result.size(); ++i) {
+            //     const auto path_point = result.at(i);
+            //     geometry_msgs::Point p;
+            //     p.x = path_point.x;
+            //     p.y = path_point.y;
+            //     p.z = 1.0;
+            //     result_marker.points.push_back(p);
+            //     const auto k = path_point.kappa;
+            //     path_color.a = std::min(fabs(k) / 0.15, 1.0);
+            //     path_color.a = std::max((float)0.1, path_color.a);
+            //     result_marker.colors.emplace_back(path_color);
+            //     //
+            //     const double heading = path_point.theta;
+            //     PathPoint p1, p2, p3, p4;
+            //     p1.x = front_d;
+            //     p1.y = width / 2;
+            //     p2.x = front_d;
+            //     p2.y = -width / 2;
+            //     p3.x = -rear_d;
+            //     p3.y = -width / 2;
+            //     p4.x = -rear_d;
+            //     p4.y = width / 2;
+            //     p1 = local_to_global(path_point, p1);
+            //     p2 = local_to_global(path_point, p2);
+            //     p3 = local_to_global(path_point, p3);
+            //     p4 = local_to_global(path_point, p4);
+            //     geometry_msgs::Point pp1, pp2, pp3, pp4;
+            //     pp1.x = p1.x;
+            //     pp1.y = p1.y;
+            //     pp1.z = 0.1;
+            //     pp2.x = p2.x;
+            //     pp2.y = p2.y;
+            //     pp2.z = 0.1;
+            //     pp3.x = p3.x;
+            //     pp3.y = p3.y;
+            //     pp3.z = 0.1;
+            //     pp4.x = p4.x;
+            //     pp4.y = p4.y;
+            //     pp4.z = 0.1;
+            //     vehicle_geometry_marker.points.push_back(pp1);
+            //     vehicle_geometry_marker.points.push_back(pp2);
+            //     vehicle_geometry_marker.points.push_back(pp2);
+            //     vehicle_geometry_marker.points.push_back(pp3);
+            //     vehicle_geometry_marker.points.push_back(pp3);
+            //     vehicle_geometry_marker.points.push_back(pp4);
+            //     vehicle_geometry_marker.points.push_back(pp4);
+            //     vehicle_geometry_marker.points.push_back(pp1);
+            // }
+            // markers.append(result_marker);
+            // markers.append(vehicle_geometry_marker);
         }
 
         // Publish the grid_map.

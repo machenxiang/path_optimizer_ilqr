@@ -1,9 +1,12 @@
 #pragma once
-#include <memory>
-#include <vector>
 #include <Eigen/Dense>
-#include "solver/variable.h"
+#include <iomanip>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 
+#include "solver/variable.h"
 namespace PathPlanning {
 
 using Solver::Variable;
@@ -23,8 +26,14 @@ struct XYPosition {
 using Vector = XYPosition;
 
 struct SLPosition {
-    double s = 0.0;
-    double l = 0.0;
+  double s = 0.0;
+  double l = 0.0;
+  std::string DebugString() {
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(20);
+    ss << "s:" << s << ",l:" << l << "\n";
+    return ss.str();
+  }
 };
 
 struct PathPoint : public XYPosition, SLPosition {
