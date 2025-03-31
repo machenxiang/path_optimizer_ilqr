@@ -28,7 +28,7 @@ void PiecewiseJerkPathProblem::CalculateKernel(std::vector<c_float>* P_data,
                                                std::vector<c_int>* P_indptr) {
   const int n = static_cast<int>(num_of_knots_);
   const int num_of_variables = 3 * n;
-  const int num_of_nonzeros = num_of_variables + (n - 1);
+  const int num_of_nonzeros = num_of_variables /*+ (n - 1)*/;
   std::vector<std::vector<std::pair<c_int, c_float>>> columns(num_of_variables);
   int value_index = 0;
 
@@ -76,12 +76,15 @@ void PiecewiseJerkPathProblem::CalculateKernel(std::vector<c_float>* P_data,
   ++value_index;
 
   // -2 * w_dddx / delta_s^2 * x(i)'' * x(i + 1)''
-  for (int i = 0; i < n - 1; ++i) {
-    columns[2 * n + i].emplace_back(2 * n + i + 1,
-                                    (-2.0 * weight_dddx_ / delta_s_square) /
-                                        (scale_factor_[2] * scale_factor_[2]));
-    ++value_index;
-  }
+  // 变成上三角
+  // for (int i = 0; i < n - 1; ++i) {
+  //   columns[2 * n + i].emplace_back(2 * n + i + 1,
+  //                                   (-2.0 * weight_dddx_ / delta_s_square) /
+  //                                       (scale_factor_[2] * scale_factor_[2]));
+  //   ++value_index;
+  // }
+
+
 
   CHECK_EQ(value_index, num_of_nonzeros);
 

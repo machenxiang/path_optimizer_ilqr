@@ -35,16 +35,16 @@ bool PathPlanningInterface::Run(std::vector<PathPlanning::XYPosition>* res) {
     double l_min_dis = std::numeric_limits<double>::max();
     double u_min_dis = std::numeric_limits<double>::max();
 
-    for (size_t j = l_min_index; j < low_boundary.size(); j++) {
-      const auto& boundary = low_boundary.at(i);
+    for (size_t j = 0; j < low_boundary.size(); j++) {
+      const auto& boundary = low_boundary.at(j);
       double dis = std::abs(p.s - boundary.s);
       if (dis < l_min_dis) {
         l_min_dis = dis;
         l_min_index = j;
       }
     }
-    for (size_t j = u_min_index; j < up_boundary.size(); j++) {
-      const auto& boundary = up_boundary.at(i);
+    for (size_t j = 0; j < up_boundary.size(); j++) {
+      const auto& boundary = up_boundary.at(j);
       double dis = std::abs(p.s - boundary.s);
       if (dis < l_min_dis) {
         u_min_dis = dis;
@@ -69,7 +69,7 @@ bool PathPlanningInterface::Run(std::vector<PathPlanning::XYPosition>* res) {
   {
     const double peak_value = config_.path_reference_l_weight;
     const double peak_value_x = 0.5 * static_cast<double>(kNumKnots) * kDeltaS;
-    std::vector<double> weight_x_ref_vec;
+    std::vector<double> weight_x_ref_vec(kNumKnots, 0.0);
     for (size_t i = 0; i < kNumKnots; ++i) {
       // Gaussian weighting
       const double x = static_cast<double>(i) * kDeltaS;
@@ -129,7 +129,6 @@ bool PathPlanningInterface::Run(std::vector<PathPlanning::XYPosition>* res) {
 
   if (!success) {
     std::cout << "fail to solve" << std::endl;
-    ;
     return false;
   }
   std::vector<double> x, dx, ddx;
@@ -164,9 +163,9 @@ double PathPlanningInterface::Gaussian(const double u, const double std,
          std::exp(-(x - u) * (x - u) / (2 * std * std));
 }
 
-double PathPlanningInterface::EstimateJerkBoundary(
-    const double vehicle_speed, const double axis_distance,
-    const double max_yaw_rate)  {
+double PathPlanningInterface::EstimateJerkBoundary(const double vehicle_speed,
+                                                   const double axis_distance,
+                                                   const double max_yaw_rate) {
   return max_yaw_rate / axis_distance / vehicle_speed;
 }
 
