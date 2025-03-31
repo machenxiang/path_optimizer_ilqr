@@ -232,7 +232,21 @@ int main(int argc, char **argv) {
 
             osqp_planning::PathPlanningInterface osqp_path_planning_interface(
                 ref_line_ptr, free_space_ptr);
-            osqp_path_planning_interface.Run();
+            std::vector<XYPosition> res;
+            osqp_path_planning_interface.Run(&res);
+            //vis res
+            visualization_msgs::Marker res_marker = markers.newLineStrip(
+                0.3, "init ref", id++, ros_viz_tools::GRAY, marker_frame_id);
+            for (size_t i=0;i<res.size();i++) {
+              const auto &p = res.at(i);
+              geometry_msgs::Point mark_p;
+              mark_p.x = p.x;
+              mark_p.y = p.y;
+              mark_p.z = 1.0;
+              res_marker.points.push_back(mark_p);
+            }
+            markers.append(res_marker);
+
             // solve
             // PathPlanning::PathProblemManager path_problem_manager;
             // path_problem_manager.formulate_path_problem(*free_space_ptr,

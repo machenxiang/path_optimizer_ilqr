@@ -28,6 +28,8 @@ using Vector = XYPosition;
 struct SLPosition {
   double s = 0.0;
   double l = 0.0;
+  SLPosition() : s(0.0), l(0.0) {}
+  SLPosition(double _s, double _l) : s(_s), l(_l) {}
   std::string DebugString() {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(20);
