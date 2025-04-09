@@ -103,6 +103,7 @@ int main(int argc, char **argv) {
     // Initialize grid map from image.
     std::string image_dir = ros::package::getPath("frenet_ilqr_test");
     std::string image_file = "gridmap.png";
+    //std::string image_file = "123.jpg";
     image_dir.append("/" + image_file);
     cv::Mat img_src = cv::imread(image_dir, CV_8UC1);
     double resolution = 0.2;  // in meter
