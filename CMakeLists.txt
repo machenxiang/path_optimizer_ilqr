@@ -70,7 +70,8 @@ add_executable(${PROJECT_NAME}_demo
         src/test/reference_line_processor.cpp
         src/osqp_solver/path_planning_interface.cpp
         src/osqp_solver/piecewise_jerk_path_problem.cc
-        src/osqp_solver/piecewise_jerk_problem.cc)
+        src/osqp_solver/piecewise_jerk_problem.cc
+        src/a_star/a_star.cpp)
 target_link_libraries(${PROJECT_NAME}_demo
         ${PROJECT_NAME}
         glog::glog  # 确保 demo 也链接 glog
