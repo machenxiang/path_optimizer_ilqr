@@ -254,6 +254,34 @@ int main(int argc, char **argv) {
               ROS_ERROR("a* failed");
             }
 
+            auto [left_boundary, right_boundary] =
+                astar_planner.findPathBoundaries(a_star_path,3.0);
+
+            // 可视化左右边界
+            visualization_msgs::Marker left_bound_marker =
+                markers.newLineStrip(0.1, "left_boundary", id++,
+                                     ros_viz_tools::RED, marker_frame_id);
+            for (const auto &pos : left_boundary) {
+              geometry_msgs::Point p;
+              p.x = pos.x();
+              p.y = pos.y();
+              p.z = 0.3;
+              left_bound_marker.points.push_back(p);
+            }
+            markers.append(left_bound_marker);
+
+            visualization_msgs::Marker right_bound_marker =
+                markers.newLineStrip(0.1, "right_boundary", id++,
+                                     ros_viz_tools::BLUE, marker_frame_id);
+            for (const auto &pos : right_boundary) {
+              geometry_msgs::Point p;
+              p.x = pos.x();
+              p.y = pos.y();
+              p.z = 0.3;
+              right_bound_marker.points.push_back(p);
+            }
+            markers.append(right_bound_marker);
+
             // step 2 Osqp path planning
             osqp_planning::PathPlanningInterface osqp_path_planning_interface(
                 ref_line_ptr, free_space_ptr);

@@ -55,6 +55,9 @@ class AStarPlanner {
 
   void setHeuristicWeight(double weight) { heuristic_weight_ = weight; }
   void setAllowDiagonal(bool allow) { allow_diagonal_ = allow; }
+  std::pair<std::vector<grid_map::Position>, std::vector<grid_map::Position>>
+  findPathBoundaries(const std::vector<grid_map::Position>& path,
+                     double search_radius = 1.0);
 
  private:
   bool isObstacle(const grid_map::Index& index) const;
@@ -66,6 +69,9 @@ class AStarPlanner {
   std::vector<grid_map::Position> reconstructPath(Node* end_node) const;
   void cleanup(
       std::priority_queue<Node*, std::vector<Node*>, CompareNodePtr>& open_set);
+  std::vector<grid_map::Position> findBoundaryForPoint(
+      const grid_map::Position& point, const grid_map::Position& prev_point,
+      const grid_map::Position& next_point, double search_radius);
 
   const grid_map::GridMap& grid_map_;
   std::string obstacle_layer_;
