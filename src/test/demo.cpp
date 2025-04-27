@@ -35,6 +35,7 @@
 #include "solver/solver.h"
 #include "../osqp_solver/path_planning_interface.h"
 #include "../a_star/a_star.h"
+#include "../common_func/common_func.h"
 
 // TODO: this file is a mess.
 
@@ -77,6 +78,41 @@ void goalCb(const geometry_msgs::PoseStampedConstPtr &goal) {
     }
     std::cout << "get the goal." << std::endl;
 }
+
+bool RunAstar(const std::string &marker_frame_id,
+              const grid_map::GridMap &grid_map,
+              const PathPlanning::PathPoint &start_state,
+              const PathPlanning::PathPoint &end_state, int *id_in,
+              std::vector<grid_map::Position> *res,
+              ros_viz_tools::RosVizTools *markers_in) {
+  auto &id = *id_in;
+  auto &a_star_path = *res;
+  auto &markers = *markers_in;
+  a_star::AStarPlanner astar_planner(grid_map);
+  a_star_path =
+      astar_planner.plan(grid_map::Position(start_state.x, start_state.y),
+                         grid_map::Position(end_state.x, end_state.y));
+
+  // Visualize A* path
+  if (!a_star_path.empty()) {
+    visualization_msgs::Marker a_star_marker = markers.newLineStrip(
+        0.2, "a_star_path", id++, ros_viz_tools::GREEN, marker_frame_id);
+    for (const auto &pos : a_star_path) {
+      geometry_msgs::Point p;
+      p.x = pos.x();
+      p.y = pos.y();
+      p.z = 0.5;
+      a_star_marker.points.push_back(p);
+    }
+    markers.append(a_star_marker);
+    return true;
+  } else {
+    ROS_ERROR("a* failed");
+    return false;
+  }
+}
+void RunOsqp() {}
+void RunIlqr() {}
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "path_optimization");
@@ -221,6 +257,7 @@ int main(int argc, char **argv) {
             visualization_msgs::Marker init_ref_marker = markers.newLineStrip(
                 0.3, "init ref", id++, ros_viz_tools::YELLOW, marker_frame_id);
             const double length = ref_line_ptr->length();
+            std::vector<grid_map::Position> init_path;
             for (double s = 0.0; s < length; s = s + 0.5) {
               const auto &p = ref_line_ptr->get_reference_point(s);
               geometry_msgs::Point mark_p;
@@ -228,34 +265,28 @@ int main(int argc, char **argv) {
               mark_p.y = p.y;
               mark_p.z = 1.0;
               init_ref_marker.points.push_back(mark_p);
+              grid_map::Position temp_p;
+              temp_p.x() = p.x;
+              temp_p.y() = p.y;
+              init_path.push_back(temp_p);
             }
             markers.append(init_ref_marker);
 
             // step 1 A*
-            a_star::AStarPlanner astar_planner(grid_map);
-            auto a_star_path = astar_planner.plan(
-                grid_map::Position(start_state.x, start_state.y),
-                grid_map::Position(end_state.x, end_state.y));
-
-            // Visualize A* path
-            if (!a_star_path.empty()) {
-              visualization_msgs::Marker a_star_marker =
-                  markers.newLineStrip(0.2, "a_star_path", id++,
-                                       ros_viz_tools::GREEN, marker_frame_id);
-              for (const auto &pos : a_star_path) {
-                geometry_msgs::Point p;
-                p.x = pos.x();
-                p.y = pos.y();
-                p.z = 0.5;
-                a_star_marker.points.push_back(p);
-              }
-              markers.append(a_star_marker);
+            std::vector<grid_map::Position> a_sta_path;
+            if (RunAstar(marker_frame_id, grid_map, start_state, end_state, &id,
+                         &a_sta_path, &markers)) {
+              ROS_INFO("a_star success");
             } else {
-              ROS_ERROR("a* failed");
+              ROS_INFO("a_star fail");
             }
+            
+            common::FindBoundary find_boundary(grid_map);
+               auto [left_boundary, right_boundary] =
+                 find_boundary.FindPathBoundaries(init_path,3.0);
 
-            auto [left_boundary, right_boundary] =
-                astar_planner.findPathBoundaries(a_star_path,3.0);
+            // auto [left_boundary, right_boundary] =
+            //     astar_planner.findPathBoundaries(init_path,3.0);
 
             // 可视化左右边界
             visualization_msgs::Marker left_bound_marker =
